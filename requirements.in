@@ -1,0 +1,17 @@
+numpy
+scipy
+scikit-image
+matplotlib
+seaborn
+plotly
+pandas
+ipython
+ipykernel
+ipympl
+tqdm
+rdkit
+pytorch
+torchmetrics
+wandb
+openbabel-wheel
+pyuul

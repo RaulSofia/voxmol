@@ -136,21 +136,28 @@ def train(
     Returns:
         dict: The computed metrics for the training process.
     """
+    
     metrics.reset()
     model.train()
+    print(">> ready to training...")
 
     for i, batch in enumerate(loader):
+        print(">> training...")
         # voxelize
         voxels = voxelizer.forward(batch)
+        print("voxelized")
         smooth_voxels = add_noise_voxels(voxels, config["smooth_sigma"])
+        print("added noise (converted to gaussian?)")
 
         # forward/backward
         pred = model(smooth_voxels)
+        print("forward done")
         loss = criterion(pred, voxels)
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
         model_ema.update(model)
+        print("backward done")
 
         # update metrics
         metrics.update(loss, pred, voxels)

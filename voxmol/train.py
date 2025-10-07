@@ -1,8 +1,12 @@
 import os
 import time
 import getpass as gt
+
+from tqdm import tqdm
 import wandb
 import torch
+
+from torch.cuda.amp import GradScaler, autocast
 
 from voxmol.options import parse_args
 from voxmol.models import create_model
@@ -139,25 +143,30 @@ def train(
     
     metrics.reset()
     model.train()
-    print(">> ready to training...")
+    scaler = GradScaler()
+    # print(">> ready to training...")
 
-    for i, batch in enumerate(loader):
-        print(">> training...")
+    for i, batch in tqdm(enumerate(loader), total=len(loader), desc="Training"):
+        optimizer.zero_grad()
+        # print(">> training...")
         # voxelize
         voxels = voxelizer.forward(batch)
-        print("voxelized")
+        # print("voxelized")
         smooth_voxels = add_noise_voxels(voxels, config["smooth_sigma"])
-        print("added noise (converted to gaussian?)")
+        # print("added noise (converted to gaussian?)")
 
         # forward/backward
-        pred = model(smooth_voxels)
-        print("forward done")
-        loss = criterion(pred, voxels)
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
+        with autocast():
+            pred = model(smooth_voxels)
+            # print("forward done")
+            loss = criterion(pred, voxels)
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+
+        
         model_ema.update(model)
-        print("backward done")
+        # print("backward done")
 
         # update metrics
         metrics.update(loss, pred, voxels)
@@ -196,7 +205,7 @@ def val(
     model.eval()
 
     with torch.no_grad():
-        for i, batch in enumerate(loader):
+        for i, batch in tqdm(enumerate(loader), total=len(loader), desc="Validation"):
             # voxelize
             voxels = voxelizer(batch)
             smooth_voxels = add_noise_voxels(voxels, config["smooth_sigma"])

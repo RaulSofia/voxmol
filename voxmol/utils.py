@@ -52,10 +52,15 @@ def create_exp_dir(config: dict):
     Returns:
         None
     """
+    # Generate timestamp prefix
+    timestamp = datetime.now().strftime('%y%m%d_%H%M%S')
+    
     if config['exp_name'] is None:
-        exp_name = datetime.now().strftime('%Y%m%d_%H%M%S').replace("'", '')
+        exp_name = timestamp
     else:
-        exp_name = config['exp_name']
+        # Add timestamp prefix to the experiment name
+        exp_name = f"{timestamp}_{config['exp_name']}"
+    
     output_dir = os.path.join(config['exp_dir'], exp_name)
     config['output_dir'] = output_dir
     makedir(output_dir)

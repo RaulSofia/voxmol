@@ -5,6 +5,7 @@ import getpass as gt
 from tqdm import tqdm
 import wandb
 import torch
+from torch.utils.tensorboard import SummaryWriter
 
 from torch.cuda.amp import GradScaler, autocast
 
@@ -25,6 +26,13 @@ def main():
     print(">> n gpus available:", torch.cuda.device_count())
     torch.set_default_dtype(torch.float32)
     seed_everything(config["seed"])
+    
+    # Initialize TensorBoard writer
+    tensorboard_dir = os.path.join(config["output_dir"], "tensorboard")
+    makedir(tensorboard_dir)
+    writer = SummaryWriter(log_dir=tensorboard_dir)
+    print(f">> TensorBoard logs will be saved to: {tensorboard_dir}")
+    
     if config["wandb"] > 0:
         wandb.init(
             project="voxmol",
@@ -80,13 +88,14 @@ def main():
 
     # ----------------------
     # start training
+    global_step = 0
     print(">> start training...")
     for epoch in range(start_epoch, start_epoch + config["num_epochs"]):
         t0 = time.time()
 
         # train
-        train_metrics = train(
-            loader_train, voxelizer, model, model_ema, criterion, optimizer, metrics, config
+        train_metrics, global_step = train(
+            loader_train, voxelizer, model, model_ema, criterion, optimizer, metrics, config, writer, global_step, epoch
         )
 
         # val
@@ -99,8 +108,17 @@ def main():
             print(f"| sampling at epoch {epoch}")
             sample(model_ema.module, config, epoch)
 
-        # print metrics, log wandb
+        # print metrics, log wandb and tensorboard
         print_metrics(epoch, time.time()-t0, train_metrics, val_metrics)
+        
+        # Log to TensorBoard
+        for metric_name, metric_value in train_metrics.items():
+            writer.add_scalar(f"train/{metric_name}", metric_value, epoch)
+        for metric_name, metric_value in val_metrics.items():
+            writer.add_scalar(f"val/{metric_name}", metric_value, epoch)
+        writer.add_scalar("time/epoch_duration", time.time()-t0, epoch)
+        writer.add_scalar("learning_rate", optimizer.param_groups[0]['lr'], epoch)
+        
         if config["wandb"] > 0:
             wandb.log({"train": train_metrics, "val": val_metrics, "sampling": None})
 
@@ -111,6 +129,10 @@ def main():
             "state_dict_ema": model_ema.module.state_dict(),
             "optimizer": optimizer.state_dict(),
         }, config=config)
+    
+    # Close TensorBoard writer
+    writer.close()
+    print(f">> Training completed! TensorBoard logs saved to: {tensorboard_dir}")
 
 
 def train(
@@ -122,6 +144,9 @@ def train(
     optimizer: torch.optim.Optimizer,
     metrics: MetricsDenoise,
     config: dict,
+    writer: SummaryWriter,
+    global_step: int,
+    epoch: int,
 ):
     """
     Trains the model using the given data loader, voxelizer, model, criterion,
@@ -136,9 +161,12 @@ def train(
         optimizer (torch.optim.Optimizer): The optimizer for updating the model parameters.
         metrics (MetricsDenoise): The metrics object for tracking the training metrics.
         config (dict): The configuration dictionary containing training settings.
+        writer (SummaryWriter): TensorBoard writer for logging.
+        global_step (int): Global step counter for logging.
+        epoch (int): Current epoch number.
 
     Returns:
-        dict: The computed metrics for the training process.
+        tuple: (dict, int) The computed metrics for the training process and updated global step.
     """
     
     metrics.reset()
@@ -160,6 +188,22 @@ def train(
             pred = model(smooth_voxels)
             # print("forward done")
             loss = criterion(pred, voxels)
+        
+        # Log to TensorBoard per batch (before backward pass)
+        writer.add_scalar("train_batch/loss", loss.item(), global_step)
+        writer.add_scalar("train_batch/learning_rate", optimizer.param_groups[0]['lr'], global_step)
+        
+        # Calculate and log batch mIoU
+        with torch.no_grad():
+            pred_th = (pred > 0.5).to(torch.uint8)
+            y_th = (voxels > 0.5).to(torch.uint8)
+            intersection = (pred_th & y_th).sum().float()
+            union = (pred_th | y_th).sum().float()
+            batch_miou = (intersection / (union + 1e-8)).item()
+            writer.add_scalar("train_batch/miou", batch_miou, global_step)
+        
+        global_step += 1
+        
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
@@ -176,7 +220,7 @@ def train(
         if config["debug"] and i == 10:
             break
 
-    return metrics.compute()
+    return metrics.compute(), global_step
 
 
 def val(

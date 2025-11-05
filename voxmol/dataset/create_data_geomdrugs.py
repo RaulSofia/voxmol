@@ -14,9 +14,12 @@ from voxmol.constants import ELEMENTS_HASH
 
 RDLogger.DisableLog("rdApp.*")
 
-RAW_URL_TRAIN = "https://drive.switch.ch/index.php/s/UauSNgSMUPQdZ9v/download"
-RAW_URL_VAL = "https://drive.switch.ch/index.php/s/YNW5UriYEeVCDnL/download"
-RAW_URL_TEST = "https://drive.switch.ch/index.php/s/GQW9ok7mPInPcIo/download"
+# RAW_URL_TRAIN = "https://drive.switch.ch/index.php/s/UauSNgSMUPQdZ9v/download"
+RAW_URL_TRAIN = "https://bits.csb.pitt.edu/files/geom_raw/train_data.pickle"
+# RAW_URL_VAL = "https://drive.switch.ch/index.php/s/YNW5UriYEeVCDnL/download"
+RAW_URL_VAL = "https://bits.csb.pitt.edu/files/geom_raw/val_data.pickle"
+# RAW_URL_TEST = "https://drive.switch.ch/index.php/s/GQW9ok7mPInPcIo/download"
+RAW_URL_TEST = "https://bits.csb.pitt.edu/files/geom_raw/test_data.pickle"
 
 
 def download_data(raw_data_dir: str):
@@ -90,8 +93,8 @@ def preprocess_geom_drugs_dataset(raw_data_dir: str, data_dir: str, split: str =
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--raw_data_dir", type=str, default="data/drugs/raw/")
-    parser.add_argument("--data_dir", type=str, default="data/drugs/")
+    parser.add_argument("--raw_data_dir", type=str, default="./voxmol/dataset/data/drugs/raw/")
+    parser.add_argument("--data_dir", type=str, default="./voxmol/dataset/data/drugs/")
     args = parser.parse_args()
 
     if not os.path.isdir(args.raw_data_dir):

@@ -51,6 +51,7 @@ def preprocess_geom_drugs_dataset(raw_data_dir: str, data_dir: str, split: str =
     with open(os.path.join(raw_data_dir, f"{split}_data.pickle"), 'rb') as f:
         all_data = pickle.load(f)
 
+    print("  >> number of molecules in raw data: ", len(all_data))
     # get all conformations of all molecules
     mols_confs = []
     for i, data in enumerate(all_data):

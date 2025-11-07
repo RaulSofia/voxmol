@@ -7,8 +7,6 @@ import wandb
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from torch.cuda.amp import GradScaler, autocast
-
 from voxmol.options import parse_args
 from voxmol.models import create_model
 from voxmol.dataset import create_loader
@@ -171,7 +169,6 @@ def train(
     
     metrics.reset()
     model.train()
-    scaler = GradScaler()
     # print(">> ready to training...")
 
     for i, batch in tqdm(enumerate(loader), total=len(loader), desc="Training"):
@@ -184,10 +181,9 @@ def train(
         # print("added noise (converted to gaussian?)")
 
         # forward/backward
-        with autocast():
-            pred = model(smooth_voxels)
-            # print("forward done")
-            loss = criterion(pred, voxels)
+        pred = model(smooth_voxels)
+        # print("forward done")
+        loss = criterion(pred, voxels)
         
         # Log to TensorBoard per batch (before backward pass)
         writer.add_scalar("train_batch/loss", loss.item(), global_step)
@@ -204,9 +200,8 @@ def train(
         
         global_step += 1
         
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        loss.backward()
+        optimizer.step()
 
         
         model_ema.update(model)

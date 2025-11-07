@@ -128,7 +128,7 @@ def preprocess_QM9_dataset(data_dir: str, split: str = "train"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_dir", type=str, default="data/qm9/")
+    parser.add_argument("--data_dir", type=str, default="./voxmol/dataset/data/qm9/")
     args = parser.parse_args()
 
     if not os.path.isdir(args.data_dir):

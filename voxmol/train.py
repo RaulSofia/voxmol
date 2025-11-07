@@ -170,9 +170,10 @@ def train(
     metrics.reset()
     model.train()
     # print(">> ready to training...")
+    
+    accumulation_steps = config.get("gradient_accumulation_steps", 1)
 
     for i, batch in tqdm(enumerate(loader), total=len(loader), desc="Training"):
-        optimizer.zero_grad()
         # print(">> training...")
         # voxelize
         voxels = voxelizer.forward(batch)
@@ -185,8 +186,11 @@ def train(
         # print("forward done")
         loss = criterion(pred, voxels)
         
+        # Scale loss by accumulation steps (average loss over accumulated batches)
+        loss = loss / accumulation_steps
+        
         # Log to TensorBoard per batch (before backward pass)
-        writer.add_scalar("train_batch/loss", loss.item(), global_step)
+        writer.add_scalar("train_batch/loss", loss.item() * accumulation_steps, global_step)
         writer.add_scalar("train_batch/learning_rate", optimizer.param_groups[0]['lr'], global_step)
         
         # Calculate and log batch mIoU
@@ -200,15 +204,20 @@ def train(
         
         global_step += 1
         
+        # Backward pass (accumulates gradients)
         loss.backward()
-        optimizer.step()
+        
+        # Only update weights every accumulation_steps batches
+        if (i + 1) % accumulation_steps == 0:
+            optimizer.step()
+            optimizer.zero_grad()
+            model_ema.update(model)
 
         
-        model_ema.update(model)
         # print("backward done")
 
-        # update metrics
-        metrics.update(loss, pred, voxels)
+        # update metrics (use unscaled loss for metrics)
+        metrics.update(loss * accumulation_steps, pred, voxels)
 
         if i*config["batch_size"] >= 100_000:
             break

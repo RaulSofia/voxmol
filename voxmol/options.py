@@ -51,6 +51,10 @@ def parse_args():
     parser.add_argument(
         "--batch_size", default=128, type=int, help="batch size for training"
     )
+    parser.add_argument(
+        "--gradient_accumulation_steps", default=1, type=int, 
+        help="number of steps to accumulate gradients before updating (effective batch size = batch_size * gradient_accumulation_steps)"
+    )
 
     # optim args
     parser.add_argument(

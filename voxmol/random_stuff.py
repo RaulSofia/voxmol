@@ -139,14 +139,14 @@ if __name__ == "__main__":
     # Example usage
     # start_mem = get_mem()
     data = open_pickled_data('./voxmol/dataset/data/drugs/raw/train_data.pickle')
-    data = flatten_confs_geom_drugs(data, n_confs=-1)
+    data = flatten_confs_geom_drugs(data, n_confs=5)
     # for mol in data:
     #     print(type(mol), mol)
     # print(f"Loaded data with {type(data)}")
     # print(f"Memory size of data: {get_data_mem_size(data)} bytes")
     # end_mem = get_mem()
     # print(f"Memory usage increased by {end_mem - start_mem} bytes")
-    mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/train_allconfs.sdf')
+    mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/train_5confs.sdf')
 
 
 

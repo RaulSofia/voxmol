@@ -146,7 +146,7 @@ if __name__ == "__main__":
     # print(f"Memory size of data: {get_data_mem_size(data)} bytes")
     # end_mem = get_mem()
     # print(f"Memory usage increased by {end_mem - start_mem} bytes")
-    # mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/val_allconfs.sdf')
+    mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/train_allconfs.sdf')
 
 
 

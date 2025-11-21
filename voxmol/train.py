@@ -265,7 +265,7 @@ def val(
             # update metrics
             metrics.update(loss, pred, voxels)
 
-            if config["dset_name"] == "qm9" and i >= 10_000:
+            if config["dset_name"] == "drugs" and i >= 10_000:
                 break
             if config["debug"] and i == 10:
                 break

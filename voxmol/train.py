@@ -28,8 +28,13 @@ def main():
     # Initialize TensorBoard writer
     tensorboard_dir = os.path.join(config["output_dir"], "tensorboard")
     makedir(tensorboard_dir)
-    writer = SummaryWriter(log_dir=tensorboard_dir)
-    print(f">> TensorBoard logs will be saved to: {tensorboard_dir}")
+    # When resuming, append to existing logs instead of overwriting
+    if config["resume"] is not None:
+        writer = SummaryWriter(log_dir=tensorboard_dir, purge_step=None)
+        print(f">> Resuming training - appending to existing TensorBoard logs at: {tensorboard_dir}")
+    else:
+        writer = SummaryWriter(log_dir=tensorboard_dir)
+        print(f">> TensorBoard logs will be saved to: {tensorboard_dir}")
     
     if config["wandb"] > 0:
         wandb.init(

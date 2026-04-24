@@ -29,9 +29,11 @@ def create_index_dict(mol_supplier_list: list):
 
 if __name__ == "__main__":
     sdf_files = [
-        './voxmol/dataset/data/drugs/raw/train_allconfs.sdf',
+        # './voxmol/dataset/data/drugs/raw/train_allconfs.sdf',
         './voxmol/dataset/data/drugs/raw/test_allconfs.sdf',
         './voxmol/dataset/data/drugs/raw/val_allconfs.sdf',
     ]
     mol_suppliers = [Chem.SDMolSupplier(sdf_file, removeHs=False) for sdf_file in sdf_files]
-    
+
+    index_dict = create_index_dict(mol_suppliers)
+    print(f"Created index dictionary with {len(index_dict)} unique SMILES keys.")

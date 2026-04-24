@@ -40,11 +40,13 @@ def open_pickled_data(file_path):
         data = pickle.load(f)
 
     flatlist = []
-    for smile, conformers in tqdm(data.items(), desc="Normalizing loaded data"):
+    for smile, conformers in tqdm(data, desc="Normalizing loaded data"):
         for conformer in conformers:
             if not isinstance(conformer, Chem.Mol):
                 raise ValueError(f"Expected RDKit Mol objects in conformers, but got {type(conformer)}")
             flatlist.append(conformer)
+    
+    print(flatlist[0:10])
     return flatlist
 
 

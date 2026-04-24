@@ -35,8 +35,10 @@ def open_pickled_data(file_path):
     Returns:
         OrderedDict: The normalized data loaded from the pickled file.
     """
+    print(f"[load] reading pickle: {file_path}")
     with open(file_path, 'rb') as f:
         data = pickle.load(f)
+    print(f"[load] normalizing pickle: {file_path}")
     return normalize_pickled_data(data)
 
 
@@ -122,7 +124,7 @@ def normalize_pickled_data(data):
     else:
         items = data
 
-    for smiles, conformers in items:
+    for smiles, conformers in tqdm(items, desc="Normalizing SMILES groups"):
         canonical_smiles = canonicalize_smiles(smiles)
         explicit_conformers = [ensure_explicit_hydrogens(conformer) for conformer in conformers]
         normalized_data.setdefault(canonical_smiles, []).extend(explicit_conformers)
@@ -142,7 +144,7 @@ def merge_pickled_data_objects(data_objects):
     """
     merged_data = OrderedDict()
 
-    for data in data_objects:
+    for data in tqdm(data_objects, desc="Merging normalized data objects"):
         normalized_data = normalize_pickled_data(data)
         for smiles, conformers in normalized_data.items():
             merged_data.setdefault(smiles, []).extend(conformers)
@@ -162,12 +164,14 @@ def load_and_merge_pickled_files(file_paths):
     """
     merged_data = OrderedDict()
 
-    for file_path in file_paths:
+    for file_path in tqdm(file_paths, desc="Loading pickle files"):
         data = open_pickled_data(file_path)
+        print(f"[merge] {file_path}: {len(data)} smiles groups")
         for smiles, conformers in data.items():
             merged_data.setdefault(smiles, []).extend(conformers)
 
     # Re-normalize at the end to guarantee key format and molecule consistency.
+    print(f"[merge] re-normalizing merged data with {len(merged_data)} smiles groups")
     return normalize_pickled_data(merged_data)
 
 
@@ -220,11 +224,12 @@ def cap_conformers_per_smiles(data, max_conformers_per_smiles):
     Returns:
         OrderedDict: Ordered mapping with capped conformers per key.
     """
+    print(f"[cap] limiting conformers per smiles to {max_conformers_per_smiles}")
     if max_conformers_per_smiles < 0:
-        return OrderedDict((smiles, list(conformers)) for smiles, conformers in data.items())
+        return OrderedDict((smiles, list(conformers)) for smiles, conformers in tqdm(data.items(), desc="Copying conformer groups"))
 
     capped_data = OrderedDict()
-    for smiles, conformers in data.items():
+    for smiles, conformers in tqdm(data.items(), desc="Capping conformers per smiles"):
         capped_data[smiles] = list(conformers[:max_conformers_per_smiles])
 
     return capped_data
@@ -270,8 +275,8 @@ def flatten_confs_geom_drugs(data, n_confs=5):
         list: A flattened list of conformers (mol objects).
     """
     mols_confs = []
-    for smiles, all_conformers in data.items():
-        for j, conformer in enumerate(all_conformers):
+    for smiles, all_conformers in tqdm(data.items(), desc="Flattening conformers by smiles"):
+        for j, conformer in enumerate(tqdm(all_conformers, desc=f"{smiles}", leave=False)):
             if n_confs > 0 and j >= n_confs:
                 break
             mols_confs.append(conformer)
@@ -289,7 +294,7 @@ def smiles_to_csv(data, csv_path):
     with open(csv_path, 'w', newline='') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(['smiles', 'num_conformers'])
-        for smiles, conformers in data.items():
+        for smiles, conformers in tqdm(data.items(), desc="Writing smiles CSV"):
             writer.writerow([smiles, len(conformers)])
 
 
@@ -305,8 +310,9 @@ def conformer_list_to_smiles_txt(conformers, txt_path, include_index=True):
         txt_path (str): Destination TXT path.
         include_index (bool): Whether to prefix each line with the conformer index.
     """
+    print(f"[write] writing smiles txt: {txt_path}")
     with open(txt_path, 'w') as txt_file:
-        for i, conformer in enumerate(conformers):
+        for i, conformer in tqdm(list(enumerate(conformers)), desc="Writing smiles txt"):
             smiles = canonicalize_molecule_smiles(conformer)
             if include_index:
                 txt_file.write(f"{i}\t{smiles}\n")
@@ -326,11 +332,12 @@ def validate_smiles_key_consistency(data, raise_on_mismatch=False, max_examples=
     Returns:
         dict: Validation summary with counts and example mismatches.
     """
+    print("[validate] checking smiles-key consistency")
     mismatches = []
     total_conformers = 0
 
-    for key_smiles, conformers in data.items():
-        for conformer_index, conformer in enumerate(conformers):
+    for key_smiles, conformers in tqdm(data.items(), desc="Validating smiles groups"):
+        for conformer_index, conformer in enumerate(tqdm(conformers, desc=f"{key_smiles}", leave=False)):
             total_conformers += 1
             conformer_smiles = canonicalize_molecule_smiles(conformer)
             if conformer_smiles != key_smiles:
@@ -439,18 +446,18 @@ if __name__ == "__main__":
     # print(f"Memory usage increased by {end_mem - start_mem} bytes")
     # mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/train_5confs.sdf')
 
-    # Previous pickle-based input list (kept for reference):
-    # input_pickle_files = [
-    #     './voxmol/dataset/data/drugs/raw/train_data.pickle',
-    #     './voxmol/dataset/data/drugs/raw/val_data.pickle',
-    #     './voxmol/dataset/data/drugs/raw/test_data.pickle',
-    # ]
-
-    input_sdf_files = [
-        './voxmol/dataset/data/drugs/raw/train_allconfs.sdf',
-        # './voxmol/dataset/data/drugs/raw/val.sdf',
-        # './voxmol/dataset/data/drugs/raw/test.sdf',
+    input_pickle_files = [
+        './voxmol/dataset/data/drugs/raw/val_data.pickle',
+        './voxmol/dataset/data/drugs/raw/test_data.pickle',
+        './voxmol/dataset/data/drugs/raw/train_data.pickle',
     ]
+
+    # Previous SDF-based input list (kept for reference):
+    # input_sdf_files = [
+    #     './voxmol/dataset/data/drugs/raw/train_allconfs.sdf',
+    #     './voxmol/dataset/data/drugs/raw/val.sdf',
+    #     './voxmol/dataset/data/drugs/raw/test.sdf',
+    # ]
 
     output_dir = './voxmol/dataset/data/drugs/raw/'
     output_sdf_path = os.path.join(output_dir, 'geom_drugs.sdf')
@@ -460,15 +467,17 @@ if __name__ == "__main__":
     # Previous pickle merge call (kept for reference):
     # merged_data = load_and_merge_pickled_files(input_pickle_files)
 
-    merged_data = load_and_merge_sdf_files(input_sdf_files)
-    print("loaded and merged data from SDF files")
+    merged_data = load_and_merge_pickled_files(input_pickle_files)
+    print("loaded and merged data from pickle files")
 
     # Optional strict consistency check before capping/export.
     validation = validate_smiles_key_consistency(merged_data)
     print(f"Validation: {validation['num_mismatches']} mismatches over {validation['num_conformers']} conformers")
 
     capped_data = cap_conformers_per_smiles(merged_data, max_conformers_per_smiles)
+    print(f"[stage] capped data contains {len(capped_data)} smiles groups")
     flat_conformers = flatten_confs_geom_drugs(capped_data, n_confs=max_conformers_per_smiles)
+    print(f"[stage] flattened to {len(flat_conformers)} conformers")
 
     mol_list_to_sdf(flat_conformers, output_sdf_path)
     conformer_list_to_smiles_txt(flat_conformers, output_txt_path, include_index=True)

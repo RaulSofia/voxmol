@@ -404,7 +404,7 @@ if __name__ == "__main__":
     input_pickle_files = [
         # './voxmol/dataset/data/drugs/raw/train_data.pickle',
         './voxmol/dataset/data/drugs/raw/val_data.pickle',
-        './voxmol/dataset/data/drugs/raw/test_data.pickle',
+        # './voxmol/dataset/data/drugs/raw/test_data.pickle',
     ]
 
     output_dir = './voxmol/dataset/data/drugs/raw/'
@@ -413,6 +413,7 @@ if __name__ == "__main__":
     max_conformers_per_smiles = -1
 
     merged_data = load_and_merge_pickled_files(input_pickle_files)
+    print("loaded and merged data from pickles")
 
     # Optional strict consistency check before capping/export.
     validation = validate_smiles_key_consistency(merged_data)

@@ -1,7 +1,10 @@
 import gc
+import csv
 import os
 import pickle
 from time import sleep
+from collections import OrderedDict
+from collections.abc import Mapping
 from pympler import asizeof
 import psutil
 from rdkit import Chem
@@ -24,14 +27,184 @@ def open_pickled_data(file_path):
     """
     Open and load data from a pickled file.
 
+    The loaded object is normalized into an OrderedDict keyed by canonical,
+    isomeric SMILES with isotopes removed.
+
     Args:
         file_path (str): The path to the pickled file.
     Returns:
-        object: The data loaded from the pickled file.
+        OrderedDict: The normalized data loaded from the pickled file.
     """
     with open(file_path, 'rb') as f:
         data = pickle.load(f)
-    return data
+    return normalize_pickled_data(data)
+
+
+def remove_isotopes(smiles):
+    """
+    Remove isotopic labels from a SMILES string while preserving stereo.
+
+    Args:
+        smiles (str): Input SMILES string.
+
+    Returns:
+        str: Canonical isomeric SMILES without isotopes.
+    """
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        raise ValueError(f"Could not parse SMILES: {smiles}")
+
+    for atom in mol.GetAtoms():
+        atom.SetIsotope(0)
+
+    mol = Chem.AddHs(mol)
+    return Chem.MolToSmiles(mol, canonical=True, isomericSmiles=True)
+
+
+def ensure_explicit_hydrogens(mol):
+    """
+    Return a copy of a molecule with all hydrogens made explicit.
+
+    Args:
+        mol: RDKit molecule.
+
+    Returns:
+        RDKit molecule: A copy with explicit hydrogens.
+    """
+    return Chem.AddHs(Chem.Mol(mol), addCoords=True)
+
+
+def canonicalize_smiles(smiles):
+    """
+    Canonicalize a SMILES string after removing isotopic information.
+
+    Args:
+        smiles (str): Input SMILES string.
+
+    Returns:
+        str: Canonical isomeric SMILES without isotopes.
+    """
+    return remove_isotopes(smiles)
+
+
+def canonicalize_molecule_smiles(mol):
+    """
+    Canonicalize a molecule into an explicit-hydrogen SMILES string.
+
+    Args:
+        mol: RDKit molecule.
+
+    Returns:
+        str: Canonical isomeric SMILES with isotopes removed and hydrogens explicit.
+    """
+    normalized_mol = Chem.Mol(mol)
+    for atom in normalized_mol.GetAtoms():
+        atom.SetIsotope(0)
+
+    normalized_mol = Chem.AddHs(normalized_mol, addCoords=True)
+    return Chem.MolToSmiles(normalized_mol, canonical=True, isomericSmiles=True)
+
+
+def normalize_pickled_data(data):
+    """
+    Normalize loaded molecule data into an OrderedDict keyed by SMILES.
+
+    Args:
+        data: Legacy list/tuple data or a mapping of SMILES to conformers.
+
+    Returns:
+        OrderedDict: Ordered mapping from canonical SMILES to conformer lists.
+    """
+    normalized_data = OrderedDict()
+
+    if isinstance(data, Mapping):
+        items = data.items()
+    else:
+        items = data
+
+    for smiles, conformers in items:
+        canonical_smiles = canonicalize_smiles(smiles)
+        explicit_conformers = [ensure_explicit_hydrogens(conformer) for conformer in conformers]
+        normalized_data.setdefault(canonical_smiles, []).extend(explicit_conformers)
+
+    return normalized_data
+
+
+def merge_pickled_data_objects(data_objects):
+    """
+    Merge multiple normalized data objects into one OrderedDict.
+
+    Args:
+        data_objects (list): List of normalized data objects.
+
+    Returns:
+        OrderedDict: Combined ordered mapping grouped by canonical SMILES.
+    """
+    merged_data = OrderedDict()
+
+    for data in data_objects:
+        normalized_data = normalize_pickled_data(data)
+        for smiles, conformers in normalized_data.items():
+            merged_data.setdefault(smiles, []).extend(conformers)
+
+    return merged_data
+
+
+def load_and_merge_pickled_files(file_paths):
+    """
+    Load multiple pickle files and merge them into one normalized OrderedDict.
+
+    Args:
+        file_paths (list[str]): Pickle file paths.
+
+    Returns:
+        OrderedDict: Combined ordered mapping grouped by canonical SMILES.
+    """
+    merged_data = OrderedDict()
+
+    for file_path in file_paths:
+        data = open_pickled_data(file_path)
+        for smiles, conformers in data.items():
+            merged_data.setdefault(smiles, []).extend(conformers)
+
+    # Re-normalize at the end to guarantee key format and molecule consistency.
+    return normalize_pickled_data(merged_data)
+
+
+def cap_conformers_per_smiles(data, max_conformers_per_smiles):
+    """
+    Cap the number of conformers stored under each SMILES key.
+
+    Args:
+        data (OrderedDict): Ordered mapping from SMILES to conformer lists.
+        max_conformers_per_smiles (int): Max conformers per key. Negative keeps all.
+
+    Returns:
+        OrderedDict: Ordered mapping with capped conformers per key.
+    """
+    if max_conformers_per_smiles < 0:
+        return OrderedDict((smiles, list(conformers)) for smiles, conformers in data.items())
+
+    capped_data = OrderedDict()
+    for smiles, conformers in data.items():
+        capped_data[smiles] = list(conformers[:max_conformers_per_smiles])
+
+    return capped_data
+
+
+def merge_and_flatten_confs_geom_drugs(data_objects, n_confs=5):
+    """
+    Merge multiple data objects and flatten their conformers in order.
+
+    Args:
+        data_objects (list): List of normalized data objects.
+        n_confs (int, optional): The number of conformers to extract per molecule.
+
+    Returns:
+        list: A flattened list of conformers (mol objects).
+    """
+    merged_data = merge_pickled_data_objects(data_objects)
+    return flatten_confs_geom_drugs(merged_data, n_confs=n_confs)
 
 def mol_list_to_sdf(mol_list, sdf_path):
     """
@@ -47,25 +220,105 @@ def mol_list_to_sdf(mol_list, sdf_path):
 
 def flatten_confs_geom_drugs(data, n_confs=5):
     """
-    Flatten the Geom Drugs dataset to extract a specified number of conformers per molecule.
-    If negative, like -1, extract all conformers.
-    Funny how it doesn't double mem usage... passes by reference...
+    Flatten an ordered molecule mapping into a list of conformers.
+
+    If n_confs is negative, all conformers are returned for each SMILES key.
 
     Args:
-        data (list): The original dataset containing tuples of (smiles, [conformers]).
+        data (OrderedDict): Ordered mapping from SMILES to lists of conformers.
         n_confs (int, optional): The number of conformers to extract per molecule. Defaults to 5.
 
     Returns:
         list: A flattened list of conformers (mol objects).
     """
     mols_confs = []
-    for i, datum in enumerate(data):
-        smiles, all_conformers = datum
+    for smiles, all_conformers in data.items():
         for j, conformer in enumerate(all_conformers):
             if n_confs > 0 and j >= n_confs:
                 break
             mols_confs.append(conformer)
     return mols_confs
+
+
+def smiles_to_csv(data, csv_path):
+    """
+    Write ordered SMILES data to a CSV file.
+
+    Args:
+        data (OrderedDict): Ordered mapping from SMILES to lists of conformers.
+        csv_path (str): Destination CSV path.
+    """
+    with open(csv_path, 'w', newline='') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(['smiles', 'num_conformers'])
+        for smiles, conformers in data.items():
+            writer.writerow([smiles, len(conformers)])
+
+
+def conformer_list_to_smiles_txt(conformers, txt_path, include_index=True):
+    """
+    Write one canonical explicit-H SMILES per conformer to a TXT file.
+
+    SMILES are extracted directly from each conformer, so line order matches the
+    conformer list order exactly (and therefore can match SDF record order).
+
+    Args:
+        conformers (list): Flat list of RDKit conformer molecules.
+        txt_path (str): Destination TXT path.
+        include_index (bool): Whether to prefix each line with the conformer index.
+    """
+    with open(txt_path, 'w') as txt_file:
+        for i, conformer in enumerate(conformers):
+            smiles = canonicalize_molecule_smiles(conformer)
+            if include_index:
+                txt_file.write(f"{i}\t{smiles}\n")
+            else:
+                txt_file.write(f"{smiles}\n")
+
+
+def validate_smiles_key_consistency(data, raise_on_mismatch=False, max_examples=10):
+    """
+    Check whether each conformer in an OrderedDict matches the SMILES key.
+
+    Args:
+        data (OrderedDict): Ordered mapping from SMILES to lists of conformers.
+        raise_on_mismatch (bool, optional): Raise a ValueError if mismatches are found.
+        max_examples (int, optional): Maximum number of mismatches to include in the report.
+
+    Returns:
+        dict: Validation summary with counts and example mismatches.
+    """
+    mismatches = []
+    total_conformers = 0
+
+    for key_smiles, conformers in data.items():
+        for conformer_index, conformer in enumerate(conformers):
+            total_conformers += 1
+            conformer_smiles = canonicalize_molecule_smiles(conformer)
+            if conformer_smiles != key_smiles:
+                mismatches.append(
+                    {
+                        "key_smiles": key_smiles,
+                        "conformer_smiles": conformer_smiles,
+                        "conformer_index": conformer_index,
+                    }
+                )
+
+    validation_result = {
+        "is_valid": len(mismatches) == 0,
+        "num_keys": len(data),
+        "num_conformers": total_conformers,
+        "num_mismatches": len(mismatches),
+        "mismatches": mismatches[:max_examples],
+    }
+
+    if raise_on_mismatch and mismatches:
+        raise ValueError(
+            "Found conformers whose explicit-hydrogen canonical SMILES do not match their key: "
+            f"{mismatches[:max_examples]}"
+        )
+
+    return validation_result
 
 def get_data_mem_size(data):
     """
@@ -136,17 +389,42 @@ def get_indexes_from_csv_splits(train_csv_path: str, val_csv_path: str, test_csv
     return train_idxs, val_idxs, test_idxs
 
 if __name__ == "__main__":
-    # Example usage
+    # Previous example usage (kept for reference):
     # start_mem = get_mem()
-    data = open_pickled_data('./voxmol/dataset/data/drugs/raw/train_data.pickle')
-    data = flatten_confs_geom_drugs(data, n_confs=5)
+    # data = open_pickled_data('./voxmol/dataset/data/drugs/raw/train_data.pickle')
+    # data = flatten_confs_geom_drugs(data, n_confs=5)
     # for mol in data:
     #     print(type(mol), mol)
     # print(f"Loaded data with {type(data)}")
     # print(f"Memory size of data: {get_data_mem_size(data)} bytes")
     # end_mem = get_mem()
     # print(f"Memory usage increased by {end_mem - start_mem} bytes")
-    mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/train_5confs.sdf')
+    # mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/train_5confs.sdf')
+
+    input_pickle_files = [
+        # './voxmol/dataset/data/drugs/raw/train_data.pickle',
+        './voxmol/dataset/data/drugs/raw/val_data.pickle',
+        './voxmol/dataset/data/drugs/raw/test_data.pickle',
+    ]
+
+    output_dir = './voxmol/dataset/data/drugs/raw/'
+    output_sdf_path = os.path.join(output_dir, 'geom_drugs.sdf')
+    output_txt_path = os.path.join(output_dir, 'geom_drugs.smi')
+    max_conformers_per_smiles = -1
+
+    merged_data = load_and_merge_pickled_files(input_pickle_files)
+
+    # Optional strict consistency check before capping/export.
+    validation = validate_smiles_key_consistency(merged_data)
+    print(f"Validation: {validation['num_mismatches']} mismatches over {validation['num_conformers']} conformers")
+
+    capped_data = cap_conformers_per_smiles(merged_data, max_conformers_per_smiles)
+    flat_conformers = flatten_confs_geom_drugs(capped_data, n_confs=max_conformers_per_smiles)
+
+    mol_list_to_sdf(flat_conformers, output_sdf_path)
+    conformer_list_to_smiles_txt(flat_conformers, output_txt_path, include_index=True)
+    print(f"Wrote {len(flat_conformers)} conformers to {output_sdf_path}")
+    print(f"Wrote aligned SMILES TXT to {output_txt_path}")
 
 
 

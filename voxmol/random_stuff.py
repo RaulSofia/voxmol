@@ -402,8 +402,8 @@ if __name__ == "__main__":
     # mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/train_5confs.sdf')
 
     input_pickle_files = [
-        # './voxmol/dataset/data/drugs/raw/train_data.pickle',
-        './voxmol/dataset/data/drugs/raw/val_data.pickle',
+        './voxmol/dataset/data/drugs/raw/train_data.pickle',
+        # './voxmol/dataset/data/drugs/raw/val_data.pickle',
         # './voxmol/dataset/data/drugs/raw/test_data.pickle',
     ]
 

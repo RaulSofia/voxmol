@@ -436,7 +436,7 @@ def get_indexes_from_csv_splits(train_csv_path: str, val_csv_path: str, test_csv
 if __name__ == "__main__":
     # Previous example usage (kept for reference):
     # start_mem = get_mem()
-    data = open_pickled_data('./voxmol/dataset/data/drugs/raw/train_data.pickle')
+    data = open_pickled_data('./voxmol/dataset/data/drugs/raw/test_data.pickle')
     data = flatten_confs_geom_drugs(data, n_confs=-1)
     # for mol in data:
     #     print(type(mol), mol)
@@ -444,7 +444,7 @@ if __name__ == "__main__":
     # print(f"Memory size of data: {get_data_mem_size(data)} bytes")
     # end_mem = get_mem()
     # print(f"Memory usage increased by {end_mem - start_mem} bytes")
-    mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/train_5confs.sdf')
+    mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/test_allconfs.sdf')
 
     # input_pickle_files = [
     #     './voxmol/dataset/data/drugs/raw/val_data.pickle',

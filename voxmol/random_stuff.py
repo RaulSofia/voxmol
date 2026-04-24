@@ -403,8 +403,8 @@ if __name__ == "__main__":
 
     input_pickle_files = [
         # './voxmol/dataset/data/drugs/raw/train_data.pickle',
-        # './voxmol/dataset/data/drugs/raw/val_data.pickle',
-        './voxmol/dataset/data/drugs/raw/test_data.pickle',
+        './voxmol/dataset/data/drugs/raw/val_data.pickle',
+        # './voxmol/dataset/data/drugs/raw/test_data.pickle',
     ]
 
     output_dir = './voxmol/dataset/data/drugs/raw/'

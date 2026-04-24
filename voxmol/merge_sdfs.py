@@ -18,7 +18,7 @@ def get_smiles_key(mol):
 def create_index_dict(mol_supplier_list: list):
     index_dict = OrderedDict()
     for mol_supplier in mol_supplier_list:
-        for i, mol in tqdm(enumerate(mol_supplier), desc="Processing molecules"):
+        for i, mol in tqdm(enumerate(mol_supplier), desc="Processing molecules", total=len(mol_supplier)):
             if mol is not None:
                 smiles_key = get_smiles_key(mol)
                 if smiles_key not in index_dict:

@@ -37,5 +37,6 @@ if __name__ == "__main__":
 
     index_dict = create_index_dict(mol_suppliers)
     print(f"Created index dictionary with {len(index_dict)} unique SMILES keys.")
+    
 
 

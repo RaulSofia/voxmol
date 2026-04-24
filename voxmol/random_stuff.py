@@ -445,7 +445,7 @@ if __name__ == "__main__":
     # Previous example usage (kept for reference):
     # start_mem = get_mem()
     data = open_pickled_data('./voxmol/dataset/data/drugs/raw/test_data.pickle')
-    data = flatten_confs_geom_drugs(data, n_confs=-1)
+    # data = flatten_confs_geom_drugs(data, n_confs=-1)
     # for mol in data:
     #     print(type(mol), mol)
     # print(f"Loaded data with {type(data)}")

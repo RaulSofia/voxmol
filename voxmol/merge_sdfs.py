@@ -38,8 +38,8 @@ if __name__ == "__main__":
         # './voxmol/dataset/data/qm9/train.sdf',
     ]
 
-    MAX_CONFORMER_COUNT = None # Set to None to keep all conformers, or set to an integer to limit the number of conformers per unique SMILES
-    # MAX_CONFORMER_COUNT = 5
+    # MAX_CONFORMER_COUNT = None # Set to None to keep all conformers, or set to an integer to limit the number of conformers per unique SMILES
+    MAX_CONFORMER_COUNT = 5
 
 
     mol_suppliers = [Chem.SDMolSupplier(sdf_file, removeHs=False) for sdf_file in sdf_files]
@@ -51,8 +51,8 @@ if __name__ == "__main__":
         for smiles_key in tqdm(index_dict, desc="SMILES keys and counts"):
             index_dict[smiles_key] = index_dict[smiles_key][:MAX_CONFORMER_COUNT]
 
-    with open('./voxmol/dataset/data/drugs/raw/geom_drugs.smi', 'w') as smi_file:
-        with Chem.SDWriter('./voxmol/dataset/data/drugs/raw/geom_drugs.sdf') as sdf_writer:
+    with open('./voxmol/dataset/data/drugs/raw/geom_drugs_5confs.smi', 'w') as smi_file:
+        with Chem.SDWriter('./voxmol/dataset/data/drugs/raw/geom_drugs_5confs.sdf') as sdf_writer:
             for smiles_key, mol_locations in tqdm(index_dict.items(), desc="Processing SMILES keys"):
                 for mol_supplier, idx in mol_locations:
                     mol = mol_supplier[idx]
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     count_dict = OrderedDict((key, len(locations)) for key, locations in index_dict.items())
     
 
-    csv_file_path = './voxmol/dataset/data/drugs/raw/geom_drugs_counts.csv'
+    csv_file_path = './voxmol/dataset/data/drugs/raw/geom_drugs_5confs_counts.csv'
     
     with open(csv_file_path, 'w', newline='') as csv_file:
         writer = csv.writer(csv_file)

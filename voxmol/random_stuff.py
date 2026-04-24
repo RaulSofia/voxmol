@@ -171,6 +171,44 @@ def load_and_merge_pickled_files(file_paths):
     return normalize_pickled_data(merged_data)
 
 
+def load_and_merge_sdf_files(file_paths):
+    """
+    Load multiple SDF files and merge them into one normalized OrderedDict.
+
+    Each molecule is normalized to isotope-free explicit-H form and grouped by
+    canonical isomeric explicit-H SMILES.
+
+    Args:
+        file_paths (list[str]): SDF file paths.
+
+    Returns:
+        OrderedDict: Combined ordered mapping grouped by canonical SMILES.
+    """
+    merged_data = OrderedDict()
+
+    for file_path in file_paths:
+        mol_supplier = Chem.SDMolSupplier(
+            file_path,
+            removeHs=False,
+            sanitize=False,
+            strictParsing=False,
+        )
+
+        for mol in tqdm(mol_supplier, desc=f"Reading {os.path.basename(file_path)}"):
+            if mol is None:
+                continue
+
+            normalized_mol = Chem.Mol(mol)
+            for atom in normalized_mol.GetAtoms():
+                atom.SetIsotope(0)
+
+            normalized_mol = ensure_explicit_hydrogens(normalized_mol)
+            smiles = canonicalize_molecule_smiles(normalized_mol)
+            merged_data.setdefault(smiles, []).append(normalized_mol)
+
+    return merged_data
+
+
 def cap_conformers_per_smiles(data, max_conformers_per_smiles):
     """
     Cap the number of conformers stored under each SMILES key.
@@ -401,10 +439,17 @@ if __name__ == "__main__":
     # print(f"Memory usage increased by {end_mem - start_mem} bytes")
     # mol_list_to_sdf(data, './voxmol/dataset/data/drugs/raw/train_5confs.sdf')
 
-    input_pickle_files = [
-        './voxmol/dataset/data/drugs/raw/train_data.pickle',
-        # './voxmol/dataset/data/drugs/raw/val_data.pickle',
-        # './voxmol/dataset/data/drugs/raw/test_data.pickle',
+    # Previous pickle-based input list (kept for reference):
+    # input_pickle_files = [
+    #     './voxmol/dataset/data/drugs/raw/train_data.pickle',
+    #     './voxmol/dataset/data/drugs/raw/val_data.pickle',
+    #     './voxmol/dataset/data/drugs/raw/test_data.pickle',
+    # ]
+
+    input_sdf_files = [
+        './voxmol/dataset/data/drugs/raw/train_allconfs.sdf',
+        # './voxmol/dataset/data/drugs/raw/val.sdf',
+        # './voxmol/dataset/data/drugs/raw/test.sdf',
     ]
 
     output_dir = './voxmol/dataset/data/drugs/raw/'
@@ -412,8 +457,11 @@ if __name__ == "__main__":
     output_txt_path = os.path.join(output_dir, 'geom_drugs.smi')
     max_conformers_per_smiles = -1
 
-    merged_data = load_and_merge_pickled_files(input_pickle_files)
-    print("loaded and merged data from pickles")
+    # Previous pickle merge call (kept for reference):
+    # merged_data = load_and_merge_pickled_files(input_pickle_files)
+
+    merged_data = load_and_merge_sdf_files(input_sdf_files)
+    print("loaded and merged data from SDF files")
 
     # Optional strict consistency check before capping/export.
     validation = validate_smiles_key_consistency(merged_data)
